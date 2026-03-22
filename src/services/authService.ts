@@ -1,13 +1,15 @@
-import prisma from '../config/db';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { registerSchema, loginSchema } from '../utils/validation';
-import { z } from 'zod';
+import prisma from "../config/db";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { registerSchema, loginSchema } from "../utils/validation";
+import { z } from "zod";
 
 const generateTokens = async (userId: number) => {
-  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET as string, { expiresIn: '15m' });
-  const refreshToken = crypto.randomBytes(40).toString('hex');
+  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
+  const refreshToken = crypto.randomBytes(40).toString("hex");
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
@@ -22,16 +24,22 @@ const generateTokens = async (userId: number) => {
   return { accessToken, refreshToken };
 };
 
-export const registerUser = async (userData: z.infer<typeof registerSchema>) => {
+export const registerUser = async (
+  userData: z.infer<typeof registerSchema>,
+) => {
   const { email, name, password } = userData;
 
   const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Find the default USER role
+  const defaultRole = await prisma.role.findUnique({ where: { name: "USER" } });
 
   const user = await prisma.user.create({
     data: {
       email,
       name,
       password: hashedPassword,
+      roleId: defaultRole?.id || null, // Assign default role if it exists
     },
   });
 
@@ -43,10 +51,10 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
   const { email, password } = loginData;
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error('Invalid credentials');
+  if (!user) throw new Error("Invalid credentials");
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) throw new Error('Invalid credentials');
+  if (!isPasswordValid) throw new Error("Invalid credentials");
 
   const tokens = await generateTokens(user.id);
   return { user, ...tokens };
@@ -58,14 +66,18 @@ export const refreshAccessToken = async (token: string) => {
     include: { user: true },
   });
 
-  if (!refreshToken) throw new Error('Invalid refresh token');
-  
+  if (!refreshToken) throw new Error("Invalid refresh token");
+
   if (refreshToken.expiresAt < new Date()) {
     await prisma.refreshToken.delete({ where: { token } });
-    throw new Error('Refresh token expired');
+    throw new Error("Refresh token expired");
   }
 
-  const accessToken = jwt.sign({ userId: refreshToken.userId }, process.env.JWT_SECRET as string, { expiresIn: '15m' });
+  const accessToken = jwt.sign(
+    { userId: refreshToken.userId },
+    process.env.JWT_SECRET as string,
+    { expiresIn: "15m" },
+  );
   return { accessToken };
 };
 

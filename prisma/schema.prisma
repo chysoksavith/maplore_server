@@ -6,14 +6,55 @@ datasource db {
   provider = "postgresql"
 }
 
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  action      String           // e.g., 'create', 'read', 'update', 'delete', 'manage'
+  subject     String           // e.g., 'User', 'Dashboard', 'Role', 'all'
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([action, subject])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
 model User {
   id            Int            @id @default(autoincrement())
   email         String         @unique
   name          String?
   password      String
+  roleId        Int?
+  role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
   refreshTokens RefreshToken[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  @@map("users")
 }
 
 model RefreshToken {
@@ -23,4 +64,6 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
 }

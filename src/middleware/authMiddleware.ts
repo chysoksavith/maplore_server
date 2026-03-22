@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/db';
+import * as response from '../utils/response';
 
 export interface AuthRequest extends Request {
   user?: any;
@@ -21,6 +22,21 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
           id: true,
           email: true,
           name: true,
+          role: {
+            select: {
+              name: true,
+              permissions: {
+                select: {
+                  permission: {
+                    select: {
+                      action: true,
+                      subject: true
+                    }
+                  }
+                }
+              }
+            }
+          },
           createdAt: true,
           updatedAt: true
           // password omitted
@@ -28,17 +44,17 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       });
 
       if (!user) {
-        return res.status(401).json({ message: 'User not found' });
+        return response.unauthorized(res, 'User not found');
       }
 
       req.user = user;
       return next();
     } catch (error) {
-      return res.status(401).json({ message: 'Not authorized, token failed' });
+      return response.unauthorized(res, 'Not authorized, token failed');
     }
   }
 
   if (!token) {
-    return res.status(401).json({ message: 'Not authorized, no token' });
+    return response.unauthorized(res, 'Not authorized, no token');
   }
 };
