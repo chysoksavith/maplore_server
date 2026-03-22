@@ -1,0 +1,21 @@
+# AI Agent Custom Rules & Guidelines
+
+## 1. Project Architecture (Controller-Service-Prisma)
+- **Routes (`src/routes`)**: Define API endpoints and attach middleware/controllers.
+- **Controllers (`src/controllers`)**: Handle HTTP requests/responses, extract parameters, and call Services. Use `src/utils/response.ts` for consistent JSON replies (`response.ok`, `response.created`).
+- **Services (`src/services`)**: Contain core business logic and database interactions via Prisma. Controllers should be "thin," passing work to "fat" services.
+- **Validation (`src/utils/validation.ts`)**: Define `zod` schemas. Always validate `req.body` or `req.query` in the controller before passing data to the service.
+
+## 2. DRY Principle (Do Not Repeat Yourself)
+- If a function, logic block, or algorithm is used in more than one place (or could be), extract it into a standalone utility function inside `src/utils/`.
+- Try to re-use existing components (like `response.ts`, `errorMiddleware.ts`) instead of writing new ones or hardcoding logic.
+
+## 3. Creating New CRUD Features
+When asked to perform CRUD generation:
+1. Update `prisma/schema.prisma` with the new model.
+2. Run `npx prisma format` and `npx prisma db push` (or `migrate dev`), followed by `npx prisma generate`.
+3. Add the `zod` validation schemas to `src/utils/validation.ts`.
+4. Create the Service file (`src/services/[name]Service.ts`) for database operations.
+5. Create the Controller file (`src/controllers/[name]Controller.ts`) to handle HTTP request data and validation.
+6. Create the Route file (`src/routes/[name]Routes.ts`) and register the endpoints.
+7. Import and attach the new Route into `src/index.ts`.
