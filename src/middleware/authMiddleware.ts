@@ -13,14 +13,32 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: number };
-      req.user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-      next();
+      
+      // EXCLUDE PASSWORD from the user object for security
+      const user = await prisma.user.findUnique({ 
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true
+          // password omitted
+        }
+      });
+
+      if (!user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+
+      req.user = user;
+      return next();
     } catch (error) {
-      res.status(401).json({ message: 'Not authorized, token failed' });
+      return res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: 'Not authorized, no token' });
+    return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
