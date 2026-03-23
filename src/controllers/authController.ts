@@ -19,12 +19,41 @@ export const register = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
+    // Explicitly exclude roleId to prevent privilege escalation during public signup
+    const { roleId, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
-      await authService.registerUser(validatedData);
+      await authService.registerUser(publicData);
     setTokenCookie(res, refreshToken);
     return response.created(res, "User created successfully", {
       userId: user.id,
       accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin-only user creation: Allows specifying a roleId.
+ * Needs to be protected by both 'protect' and 'canManage("User")' middleware.
+ */
+export const adminCreateUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const validatedData = registerSchema.parse(req.body);
+    const { user, accessToken, refreshToken } =
+      await authService.registerUser(validatedData);
+    // We don't set cookie for the admin's session, we just return the new user info.
+    return response.created(res, "User created by admin successfully", {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        roleId: user.roleId,
+      },
     });
   } catch (error) {
     next(error);

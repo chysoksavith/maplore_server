@@ -25,21 +25,27 @@ const generateTokens = async (userId: number) => {
 };
 
 export const registerUser = async (
-  userData: z.infer<typeof registerSchema>,
+  userData: z.infer<typeof registerSchema> & { roleId?: number },
 ) => {
-  const { email, name, password } = userData;
+  const { email, name, password, roleId } = userData;
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Find the default USER role
-  const defaultRole = await prisma.role.findUnique({ where: { name: "USER" } });
+  // If no roleId is provided, find the default USER role
+  let finalRoleId = roleId;
+  if (!finalRoleId) {
+    const defaultRole = await prisma.role.findUnique({
+      where: { name: "USER" },
+    });
+    finalRoleId = defaultRole?.id;
+  }
 
   const user = await prisma.user.create({
     data: {
       email,
       name,
       password: hashedPassword,
-      roleId: defaultRole?.id || null, // Assign default role if it exists
+      roleId: finalRoleId || null,
     },
   });
 

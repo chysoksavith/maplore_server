@@ -3,11 +3,18 @@ import { protect, AuthRequest } from '../middleware/authMiddleware';
 import { canManage } from '../middleware/authorize';
 import * as response from '../utils/response';
 
+import * as authController from '../controllers/authController';
+
 const router = express.Router();
 
 router.get('/profile', protect, (req: AuthRequest, res) => {
   return response.ok(res, 'User profile retrieved', { user: req.user });
 });
+
+/**
+ * Admin: Create a new user with specific role.
+ */
+router.post('/create', protect, canManage('User'), authController.adminCreateUser);
 
 // Example: Only SUPERADMIN or BACKEND_USER (who can manage 'Dashboard') will be able to access this endpoint
 router.get('/dashboard-stats', protect, canManage('Dashboard'), (req: AuthRequest, res) => {

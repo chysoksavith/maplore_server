@@ -50,5 +50,8 @@
   "bugs": {
     "url": "https://github.com/chysoksavith/maplore_server/issues"
   },
-  "homepage": "https://github.com/chysoksavith/maplore_server#readme"
+  "homepage": "https://github.com/chysoksavith/maplore_server#readme",
+  "prisma": {
+    "seed": "ts-node src/seeds/main.ts"
+  }
 }

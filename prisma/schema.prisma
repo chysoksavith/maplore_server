@@ -55,6 +55,8 @@ model User {
   updatedAt     DateTime       @updatedAt
 
   @@map("users")
+  @@index([roleId])
+  @@index([createdAt])
 }
 
 model RefreshToken {
@@ -66,4 +68,5 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@map("refresh_tokens")
+  @@index([userId])
 }
