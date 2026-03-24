@@ -19,8 +19,8 @@ export const register = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
-    // Explicitly exclude roleId to prevent privilege escalation during public signup
-    const { roleId, ...publicData } = validatedData;
+    // Explicitly exclude sensitive fields to prevent privilege escalation during public signup
+    const { roleId, type, isActive, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
       await authService.registerUser(publicData);
     setTokenCookie(res, refreshToken);

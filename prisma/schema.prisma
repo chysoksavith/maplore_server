@@ -48,6 +48,8 @@ model User {
   email         String         @unique
   name          String?
   password      String
+  type          UserType       @default(FRONTEND)
+  isActive      Boolean        @default(true)
   roleId        Int?
   role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
   refreshTokens RefreshToken[]
@@ -57,6 +59,13 @@ model User {
   @@map("users")
   @@index([roleId])
   @@index([createdAt])
+  @@index([isActive])
+  @@index([type])
+}
+
+enum UserType {
+  BACKEND
+  FRONTEND
 }
 
 model RefreshToken {

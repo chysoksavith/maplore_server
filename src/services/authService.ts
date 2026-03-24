@@ -25,9 +25,9 @@ const generateTokens = async (userId: number) => {
 };
 
 export const registerUser = async (
-  userData: z.infer<typeof registerSchema> & { roleId?: number },
+  userData: z.infer<typeof registerSchema>,
 ) => {
-  const { email, name, password, roleId } = userData;
+  const { email, name, password, roleId, type, isActive } = userData;
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -46,6 +46,8 @@ export const registerUser = async (
       name,
       password: hashedPassword,
       roleId: finalRoleId || null,
+      type: type as any, // Cast as any if Prisma types haven't been regenerated yet
+      isActive: isActive ?? true,
     },
   });
 
@@ -58,6 +60,10 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new Error("Invalid credentials");
+
+  if (!user.isActive) {
+    throw new Error("User account is inactive. Please contact support.");
+  }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw new Error("Invalid credentials");

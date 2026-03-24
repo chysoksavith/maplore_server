@@ -5,6 +5,8 @@ export const registerSchema = z.object({
   name: z.string().min(3),
   password: z.string().min(6),
   roleId: z.number().optional(),
+  type: z.enum(['BACKEND', 'FRONTEND']).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({
