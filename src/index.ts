@@ -27,9 +27,9 @@ app.use(cors({
 }));
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again after 15 minutes',
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10), // Default 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10), // limit each IP
+  message: 'Too many requests from this IP, please try again later',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
@@ -37,9 +37,9 @@ app.use(limiter);
 
 // Specific limiter for login to prevent brute force
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 login attempts per windowMs
-  message: 'Too many login attempts, please try again after 15 minutes',
+  windowMs: parseInt(process.env.LOGIN_LIMIT_WINDOW_MS || "900000", 10), // Default 15 minutes
+  max: parseInt(process.env.LOGIN_LIMIT_MAX || "10", 10), // limit each IP
+  message: 'Too many login attempts, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
 });

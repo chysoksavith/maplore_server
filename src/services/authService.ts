@@ -7,11 +7,12 @@ import { z } from "zod";
 
 const generateTokens = async (userId: number) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
-    expiresIn: "15m",
+    expiresIn: (process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || "15m") as any,
   });
   const refreshToken = crypto.randomBytes(40).toString("hex");
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+  const refreshExpiresInDays = parseInt(process.env.JWT_REFRESH_TOKEN_EXPIRES_IN_DAYS || "7", 10);
+  expiresAt.setDate(expiresAt.getDate() + refreshExpiresInDays);
 
   await prisma.refreshToken.create({
     data: {
@@ -88,7 +89,7 @@ export const refreshAccessToken = async (token: string) => {
   const accessToken = jwt.sign(
     { userId: refreshToken.userId },
     process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
+    { expiresIn: (process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || "15m") as any },
   );
   return { accessToken };
 };
