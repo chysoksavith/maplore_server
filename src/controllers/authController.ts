@@ -2,8 +2,15 @@ import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService";
 import { registerSchema, loginSchema } from "../utils/validation";
 import * as response from "../utils/response";
+import logger from "../utils/logger";
 
-const setTokenCookie = (res: Response, refreshToken: string) => {
+const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 15 * 60 * 1000, // 15 minutes
+  });
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -23,10 +30,10 @@ export const register = async (
     const { roleId, type, isActive, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
       await authService.registerUser(publicData);
-    setTokenCookie(res, refreshToken);
+    setAuthCookies(res, accessToken, refreshToken);
+    logger.info(`New user registered: ${user.email}`);
     return response.created(res, "User created successfully", {
       userId: user.id,
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -69,10 +76,10 @@ export const login = async (
     const validatedData = loginSchema.parse(req.body);
     const { user, accessToken, refreshToken } =
       await authService.loginUser(validatedData);
-    setTokenCookie(res, refreshToken);
+    setAuthCookies(res, accessToken, refreshToken);
+    logger.info(`User logged in: ${user.email}`);
     return response.ok(res, "Login successful", {
       userId: user.id,
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -90,7 +97,14 @@ export const refresh = async (
       return response.unauthorized(res, "No refresh token provided");
     }
     const { accessToken } = await authService.refreshAccessToken(refreshToken);
-    return response.ok(res, "Token refreshed", { accessToken });
+    logger.info(`Access token refreshed via /refresh`);
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+    return response.ok(res, "Token refreshed");
   } catch (error) {
     next(error);
   }
@@ -105,7 +119,13 @@ export const logout = async (
     const { refreshToken } = req.cookies;
     if (refreshToken) {
       await authService.logoutUser(refreshToken);
+      logger.info('User logged out');
     }
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

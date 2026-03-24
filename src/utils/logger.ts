@@ -1,4 +1,4 @@
-import winston from 'winston';
+  import winston from 'winston';
 import 'winston-daily-rotate-file';
 import path from 'path';
 import fs from 'fs';
@@ -31,14 +31,14 @@ const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: logFormat,
   transports: [
-    // This will log ONLY errors into a daily rotating file, similar to Laravel logs
+    // Consolidated application logs
     new winston.transports.DailyRotateFile({
-      filename: path.join(logDir, 'error-%DATE%.log'),
+      filename: path.join(logDir, 'application-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       zippedArchive: true,
       maxSize: '20m',
       maxFiles: '14d',
-      level: 'error',
+      level: 'info', // Captures info, warn, error
     }),
   ],
 });

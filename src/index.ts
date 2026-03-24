@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes';
 import roleRoutes from './routes/roleRoutes';
 import { errorHandler } from './middleware/errorMiddleware';
 import * as response from './utils/response';
+import logger from './utils/logger';
 
 dotenv.config();
 
@@ -66,5 +67,5 @@ app.use(errorHandler);
 const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  logger.info(`Server is running on port ${port}`);
 });
