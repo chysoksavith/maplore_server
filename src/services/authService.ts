@@ -28,7 +28,7 @@ const generateTokens = async (userId: number) => {
 export const registerUser = async (
   userData: z.infer<typeof registerSchema>,
 ) => {
-  const { email, name, password, roleId, type, isActive } = userData;
+  const { email, name, password, roleId, type, isActive, avatar } = userData;
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -47,13 +47,32 @@ export const registerUser = async (
       name,
       password: hashedPassword,
       roleId: finalRoleId || null,
-      type: type as any, // Cast as any if Prisma types haven't been regenerated yet
+      type: type as any,
       isActive: isActive ?? true,
+      avatar,
     },
   });
 
   const tokens = await generateTokens(user.id);
   return { user, ...tokens };
+};
+
+export const updateUserProfile = async (
+  userId: number,
+  profileData: { name?: string; password?: string; avatar?: string }
+) => {
+  const data: any = {};
+  
+  if (profileData.name) data.name = profileData.name;
+  if (profileData.password) data.password = await bcrypt.hash(profileData.password, 10);
+  if (profileData.avatar) data.avatar = profileData.avatar;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+
+  return user;
 };
 
 export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {

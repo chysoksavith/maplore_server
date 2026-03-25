@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import roleRoutes from './routes/roleRoutes';
+import uploadRoutes from './routes/upload';
 import { errorHandler } from './middleware/errorMiddleware';
 import * as response from './utils/response';
 import logger from './utils/logger';
@@ -61,6 +62,11 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api', uploadRoutes);
+
+// Serve uploads if local storage is used
+import path from 'path';
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.use(errorHandler);
 

@@ -52,6 +52,7 @@ model User {
   isActive      Boolean        @default(true)
   roleId        Int?
   role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  avatar        String?
   refreshTokens RefreshToken[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -61,6 +62,7 @@ model User {
   @@index([createdAt])
   @@index([isActive])
   @@index([type])
+  @@index([avatar])
 }
 
 enum UserType {

@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService";
-import { registerSchema, loginSchema } from "../utils/validation";
+import { registerSchema, loginSchema, updateProfileSchema } from "../utils/validation";
 import * as response from "../utils/response";
 import logger from "../utils/logger";
+import { uploadService } from "../services/UploadService";
+import { AuthRequest } from "../middleware/authMiddleware";
+import prisma from "../config/db";
 
 const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
   res.cookie("accessToken", accessToken, {
@@ -26,10 +29,22 @@ export const register = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
+
+    let avatarUrl = undefined;
+    if (req.file) {
+      const uploadRes = await uploadService.processAndUpload(req.file, {
+        folder: 'avatars',
+        width: 300,
+        height: 300,
+      });
+      avatarUrl = uploadRes.url;
+    }
+
     // Explicitly exclude sensitive fields to prevent privilege escalation during public signup
     const { roleId, type, isActive, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
-      await authService.registerUser(publicData);
+      await authService.registerUser({ ...publicData, avatar: avatarUrl });
+    
     setAuthCookies(res, accessToken, refreshToken);
     logger.info(`New user registered: ${user.email}`);
     return response.created(res, "User created successfully", {
@@ -40,10 +55,6 @@ export const register = async (
   }
 };
 
-/**
- * Admin-only user creation: Allows specifying a roleId.
- * Needs to be protected by both 'protect' and 'canManage("User")' middleware.
- */
 export const adminCreateUser = async (
   req: Request,
   res: Response,
@@ -51,15 +62,70 @@ export const adminCreateUser = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
+
+    let avatarUrl = undefined;
+    if (req.file) {
+      const uploadRes = await uploadService.processAndUpload(req.file, {
+        folder: 'avatars',
+        width: 300,
+        height: 300,
+      });
+      avatarUrl = uploadRes.url;
+    }
+
     const { user, accessToken, refreshToken } =
-      await authService.registerUser(validatedData);
-    // We don't set cookie for the admin's session, we just return the new user info.
+      await authService.registerUser({ ...validatedData, avatar: avatarUrl });
+    
     return response.created(res, "User created by admin successfully", {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         roleId: user.roleId,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateProfile = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) return response.unauthorized(res, "User not found in request");
+
+    const validatedData = updateProfileSchema.parse(req.body);
+    let avatarUrl = undefined;
+
+    if (req.file) {
+      // 1. Cleanup old avatar
+      if (req.user.avatar) {
+        await uploadService.deleteByUrl(req.user.avatar);
+      }
+      // 2. Upload new
+      const uploadRes = await uploadService.processAndUpload(req.file, {
+        folder: 'avatars',
+        width: 300,
+        height: 300,
+      });
+      avatarUrl = uploadRes.url;
+    }
+
+    const updatedUser = await authService.updateUserProfile(req.user.id, {
+      ...validatedData,
+      avatar: avatarUrl,
+    });
+
+    return response.ok(res, "Profile updated successfully", {
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        avatar: updatedUser.avatar,
       },
     });
   } catch (error) {

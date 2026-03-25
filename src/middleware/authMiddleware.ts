@@ -16,6 +16,7 @@ const getUserWithPermissions = async (userId: number) => {
       id: true,
       email: true,
       name: true,
+      avatar: true,
       role: {
         select: {
           name: true,
