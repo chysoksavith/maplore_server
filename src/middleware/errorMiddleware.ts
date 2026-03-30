@@ -1,12 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import * as response from '../utils/response';
+import { AppError } from '../utils/AppError';
 
 import logger from '../utils/logger';
 
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof AppError) {
+    return response.sendError(res, err.statusCode, err.message);
+  }
+
   if (err instanceof ZodError) {
-    return response.badRequest(res, 'Validation failed', err.issues);
+    const formattedErrors = err.issues.map(e => ({
+      field: e.path.join('.'),
+      message: e.message,
+    }));
+    return response.badRequest(res, 'Validation failed', formattedErrors);
   }
 
   if (err.message === 'Invalid credentials') {

@@ -1,8 +1,10 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
+
+import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import { globalLimiter } from './middleware/rateLimiter';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 
@@ -13,8 +15,6 @@ import uploadRoutes from './routes/upload';
 import { errorHandler } from './middleware/errorMiddleware';
 import * as response from './utils/response';
 import logger from './utils/logger';
-
-dotenv.config();
 
 const app: Express = express();
 
@@ -28,24 +28,11 @@ app.use(cors({
   credentials: true,
 }));
 
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10), // Default 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10), // limit each IP
-  message: 'Too many requests from this IP, please try again later',
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-app.use(limiter);
 
-// Specific limiter for login to prevent brute force
-const loginLimiter = rateLimit({
-  windowMs: parseInt(process.env.LOGIN_LIMIT_WINDOW_MS || "900000", 10), // Default 15 minutes
-  max: parseInt(process.env.LOGIN_LIMIT_MAX || "10", 10), // limit each IP
-  message: 'Too many login attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/auth/login', loginLimiter);
+// Trust proxy if you are behind a load balancer/reverse proxy
+// app.set('trust proxy', 1);
+
+app.use(globalLimiter);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -59,8 +46,13 @@ app.get('/api/health', (req: Request, res: Response) => {
   return response.ok(res, 'Maplore API is healthy and connected');
 });
 
+// auth routes
 app.use('/api/auth', authRoutes);
+
+// user routes
 app.use('/api/users', userRoutes);
+
+// role routes
 app.use('/api/roles', roleRoutes);
 app.use('/api', uploadRoutes);
 
@@ -72,6 +64,10 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 
-app.listen(port, () => {
-  logger.info(`Server is running on port ${port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
+
+export default app;

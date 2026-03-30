@@ -1,12 +1,23 @@
 import express from 'express';
 import * as authController from '../controllers/authController';
-import { uploadMiddleware } from '../middleware/upload';
+import {
+  loginLimiter,
+  otpLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+} from '../middleware/rateLimiter';
 
 const router = express.Router();
 
-router.post('/register', uploadMiddleware.single('avatar'), authController.register);
-router.post('/login', authController.login);
-router.post('/refresh', authController.refresh);
-router.post('/logout', authController.logout);
+// Public auth routes
+router.post('/register',        authController.register);
+router.post('/login',           loginLimiter,          authController.login);
+router.post('/verify-otp',      otpLimiter,            authController.verifyOtp);
+router.post('/refresh',         authController.refresh);
+router.post('/logout',          authController.logout);
+
+// Password recovery
+router.post('/forgot-password',          forgotPasswordLimiter,  authController.forgotPassword);
+router.post('/reset-password/:token',    resetPasswordLimiter,   authController.resetPassword);
 
 export default router;

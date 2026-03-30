@@ -10,22 +10,22 @@ model Role {
   id          Int              @id @default(autoincrement())
   name        String           @unique
   description String?
-  permissions RolePermission[]
-  users       User[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
 
   @@map("roles")
 }
 
 model Permission {
   id          Int              @id @default(autoincrement())
-  action      String           // e.g., 'create', 'read', 'update', 'delete', 'manage'
-  subject     String           // e.g., 'User', 'Dashboard', 'Role', 'all'
+  action      String
+  subject     String
   description String?
-  roles       RolePermission[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
 
   @@unique([action, subject])
   @@map("permissions")
@@ -35,9 +35,9 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
@@ -56,10 +56,24 @@ model User {
   refreshTokens RefreshToken[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  id                   Int            @id @default(autoincrement())
+  email                String         @unique
+  name                 String?
+  password             String
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  roleId               Int?
+  resetPasswordExpires DateTime?
+  resetPasswordToken   String?        @unique
+  otpCode              String?        @unique
+  otpExpires           DateTime?
+  otpAttempts          Int            @default(0)
+  refreshTokens        RefreshToken[]
+  role                 Role?          @relation(fields: [roleId], references: [id])
 
-  @@map("users")
   @@index([roleId])
   @@index([createdAt])
+<<<<<<< HEAD
   @@index([isActive])
   @@index([type])
   @@index([avatar])
@@ -68,16 +82,21 @@ model User {
 enum UserType {
   BACKEND
   FRONTEND
+=======
+  @@index([resetPasswordToken])
+  @@index([otpCode])
+  @@map("users")
+>>>>>>> 15ea264 (add forgot pass otp)
 }
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("refresh_tokens")
   @@index([userId])
+  @@map("refresh_tokens")
 }

@@ -5,19 +5,37 @@ import * as response from '../utils/response';
 import * as authService from '../services/authService';
 import logger from '../utils/logger';
 
-export interface AuthRequest extends Request {
-  user?: any;
+export interface AuthenticatedUser {
+  id: number;
+  email: string;
+  name: string | null;
+  role: {
+    name: string;
+    permissions: { permission: { action: string; subject: string } }[];
+  } | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const getUserWithPermissions = async (userId: number) => {
-  return await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      avatar: true,
-      role: {
+export interface AuthRequest extends Request {
+  user?: AuthenticatedUser;
+}
+
+export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  let token;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+      // Reject obviously malformed tokens before handing to jwt.verify
+      if (!token || token.length < 10) {
+        return response.unauthorized(res, 'Not authorized, invalid token format');
+      }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: number };
+      
+      // EXCLUDE PASSWORD from the user object for security
+      const user = await prisma.user.findUnique({ 
+        where: { id: decoded.userId },
         select: {
           name: true,
           permissions: {

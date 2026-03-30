@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService";
 import { registerSchema, loginSchema, updateProfileSchema } from "../utils/validation";
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  verifyOtpSchema,
+} from "../utils/validation";
 import * as response from "../utils/response";
 import logger from "../utils/logger";
 import { uploadService } from "../services/UploadService";
@@ -19,9 +26,33 @@ const setAuthCookies = (res: Response, accessToken: string, refreshToken: string
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+// ---------------------------------------------------------------------------
+// Cookie helper – centralised so options are always consistent
+// ---------------------------------------------------------------------------
+const COOKIE_NAME = "refreshToken";
+
+const setTokenCookie = (res: Response, refreshToken: string) => {
+  res.cookie(COOKIE_NAME, refreshToken, {
+    httpOnly: true,                                           // not accessible via JS
+    secure: process.env.NODE_ENV === "production",            // HTTPS-only in prod
+    sameSite: "strict",                                       // CSRF protection
+    maxAge: 7 * 24 * 60 * 60 * 1000,                         // 7 days in ms
+    path: "/api/auth",                                        // scope cookie to auth routes only
   });
 };
 
+const clearTokenCookie = (res: Response) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/auth",
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Register (public sign-up)
+// ---------------------------------------------------------------------------
 export const register = async (
   req: Request,
   res: Response,
@@ -29,19 +60,8 @@ export const register = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
-
-    let avatarUrl = undefined;
-    if (req.file) {
-      const uploadRes = await uploadService.processAndUpload(req.file, {
-        folder: 'avatars',
-        width: 300,
-        height: 300,
-      });
-      avatarUrl = uploadRes.url;
-    }
-
-    // Explicitly exclude sensitive fields to prevent privilege escalation during public signup
-    const { roleId, type, isActive, ...publicData } = validatedData;
+    // Explicitly strip roleId – privilege escalation prevention
+    const { roleId, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
       await authService.registerUser({ ...publicData, avatar: avatarUrl });
     
@@ -55,6 +75,10 @@ export const register = async (
   }
 };
 
+// ---------------------------------------------------------------------------
+// Admin-only user creation
+// Must be protected by 'protect' + 'canManage("User")' middleware on the route.
+// ---------------------------------------------------------------------------
 export const adminCreateUser = async (
   req: Request,
   res: Response,
@@ -76,6 +100,8 @@ export const adminCreateUser = async (
     const { user, accessToken, refreshToken } =
       await authService.registerUser({ ...validatedData, avatar: avatarUrl });
     
+    const { user } = await authService.registerUser(validatedData);
+    // Do NOT issue tokens for the admin's session – only return the new user's info
     return response.created(res, "User created by admin successfully", {
       user: {
         id: user.id,
@@ -133,6 +159,9 @@ export const updateProfile = async (
   }
 };
 
+// ---------------------------------------------------------------------------
+// Login
+// ---------------------------------------------------------------------------
 export const login = async (
   req: Request,
   res: Response,
@@ -140,10 +169,20 @@ export const login = async (
 ) => {
   try {
     const validatedData = loginSchema.parse(req.body);
-    const { user, accessToken, refreshToken } =
-      await authService.loginUser(validatedData);
-    setAuthCookies(res, accessToken, refreshToken);
-    logger.info(`User logged in: ${user.email}`);
+    const result = await authService.loginUser(validatedData);
+
+    if ("otpRequired" in result) {
+      // Never echo back the full email – return it exactly as stored/normalised
+      return response.ok(res, "Verification code sent to your email", {
+        otpRequired: true,
+        // Returning the email is acceptable here; the client needs it for the
+        // next OTP submission. Masking (e.g. "j***@example.com") is optional UI polish.
+        email: result.email,
+      });
+    }
+
+    const { user, accessToken, refreshToken } = result;
+    setTokenCookie(res, refreshToken);
     return response.ok(res, "Login successful", {
       userId: user.id,
     });
@@ -152,6 +191,31 @@ export const login = async (
   }
 };
 
+// ---------------------------------------------------------------------------
+// Verify OTP (login second step)
+// ---------------------------------------------------------------------------
+export const verifyOtp = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { email, otp } = verifyOtpSchema.parse(req.body);
+    const { user, accessToken, refreshToken } =
+      await authService.verifyLoginOtp(email, otp);
+    setTokenCookie(res, refreshToken);
+    return response.ok(res, "Verification successful", {
+      userId: user.id,
+      accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Refresh access token
+// ---------------------------------------------------------------------------
 export const refresh = async (
   req: Request,
   res: Response,
@@ -171,11 +235,18 @@ export const refresh = async (
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
     return response.ok(res, "Token refreshed");
+    const { accessToken, newRefreshToken } =
+      await authService.refreshAccessToken(refreshToken);
+    setTokenCookie(res, newRefreshToken);
+    return response.ok(res, "Token refreshed", { accessToken });
   } catch (error) {
     next(error);
   }
 };
 
+// ---------------------------------------------------------------------------
+// Logout
+// ---------------------------------------------------------------------------
 export const logout = async (
   req: Request,
   res: Response,
@@ -197,7 +268,53 @@ export const logout = async (
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
+    clearTokenCookie(res);
     return response.ok(res, "Logged out successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Forgot password
+// ---------------------------------------------------------------------------
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    await authService.forgotPassword(email);
+    // Always return the same message whether the email exists or not
+    return response.ok(
+      res,
+      "If an account with that email exists, a password reset link has been sent.",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Reset password
+// ---------------------------------------------------------------------------
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const token = req.params.token as string;
+    if (!token || token.length < 10) {
+      return response.badRequest(res, "Invalid reset token");
+    }
+    const validatedData = resetPasswordSchema.parse(req.body);
+    await authService.resetPassword(token, validatedData);
+    return response.ok(
+      res,
+      "Password has been reset successfully. Please log in with your new password.",
+    );
   } catch (error) {
     next(error);
   }
