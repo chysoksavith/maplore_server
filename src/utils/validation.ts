@@ -16,19 +16,6 @@ const passwordSchema = z
 // Register
 // ---------------------------------------------------------------------------
 export const registerSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(3),
-  password: z.string().min(6),
-  roleId: z.number().optional(),
-  type: z.enum(['BACKEND', 'FRONTEND']).optional(),
-  isActive: z.boolean().optional(),
-  avatar: z.string().optional(),
-});
-
-export const updateProfileSchema = z.object({
-  name: z.string().min(3).optional(),
-  password: z.string().min(6).optional(),
-  avatar: z.string().optional(),
   email: z.string().email('Invalid email address').toLowerCase(),
   name: z
     .string()
@@ -37,6 +24,23 @@ export const updateProfileSchema = z.object({
     .trim(),
   password: passwordSchema,
   roleId: z.number().int().positive().optional(),
+  type: z.enum(['BACKEND', 'FRONTEND']).optional(),
+  isActive: z.boolean().optional(),
+  avatar: z.string().optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Update profile
+// ---------------------------------------------------------------------------
+export const updateProfileSchema = z.object({
+  name: z
+    .string()
+    .min(2, 'Name must be at least 2 characters long')
+    .max(100, 'Name must be at most 100 characters long')
+    .trim()
+    .optional(),
+  password: passwordSchema.optional(),
+  avatar: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------

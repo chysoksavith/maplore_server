@@ -9,6 +9,7 @@ export interface AuthenticatedUser {
   id: number;
   email: string;
   name: string | null;
+  avatar: string | null;
   role: {
     name: string;
     permissions: { permission: { action: string; subject: string } }[];
@@ -21,21 +22,20 @@ export interface AuthRequest extends Request {
   user?: AuthenticatedUser;
 }
 
-export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  let token;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-      // Reject obviously malformed tokens before handing to jwt.verify
-      if (!token || token.length < 10) {
-        return response.unauthorized(res, 'Not authorized, invalid token format');
-      }
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: number };
-      
-      // EXCLUDE PASSWORD from the user object for security
-      const user = await prisma.user.findUnique({ 
-        where: { id: decoded.userId },
+// ---------------------------------------------------------------------------
+// Helper – fetch user with role & permissions (no password)
+// ---------------------------------------------------------------------------
+const getUserWithPermissions = async (userId: number): Promise<AuthenticatedUser | null> => {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      avatar: true,
+      createdAt: true,
+      updatedAt: true,
+      role: {
         select: {
           name: true,
           permissions: {
@@ -43,19 +43,20 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
               permission: {
                 select: {
                   action: true,
-                  subject: true
-                }
-              }
-            }
-          }
-        }
+                  subject: true,
+                },
+              },
+            },
+          },
+        },
       },
-      createdAt: true,
-      updatedAt: true
-    }
-  });
+    },
+  }) as Promise<AuthenticatedUser | null>;
 };
 
+// ---------------------------------------------------------------------------
+// protect middleware
+// ---------------------------------------------------------------------------
 export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
   let token = req.cookies.accessToken;
 
@@ -69,7 +70,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: number };
-    
+
     // EXCLUDE PASSWORD from the user object for security
     const user = await getUserWithPermissions(decoded.userId);
 
@@ -83,28 +84,36 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
     // If access token is expired, try to auto-refresh using the refresh token cookie
     if (error.name === 'TokenExpiredError') {
       const refreshToken = req.cookies.refreshToken;
-      
+
       if (refreshToken) {
         try {
           logger.info('🔄 Access token expired. Attempting transparent auto-refresh...');
-          
-          const { accessToken: newAccessToken } = await authService.refreshAccessToken(refreshToken);
-          
-          // Set new access token cookie
-          res.cookie("accessToken", newAccessToken, {
+
+          const { accessToken: newAccessToken, newRefreshToken } =
+            await authService.refreshAccessToken(refreshToken);
+
+          // Rotate cookies
+          res.cookie('accessToken', newAccessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
             maxAge: 15 * 60 * 1000, // 15 minutes
+          });
+          res.cookie('refreshToken', newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/api/auth',
           });
 
           // Verify the newly generated token
-          const decoded = jwt.verify(newAccessToken, process.env.JWT_SECRET as string) as { userId: number };
-          const user = await getUserWithPermissions(decoded.userId);
+          const newDecoded = jwt.verify(newAccessToken, process.env.JWT_SECRET as string) as { userId: number };
+          const refreshedUser = await getUserWithPermissions(newDecoded.userId);
 
-          if (user) {
-            req.user = user;
-            logger.info(`✅ Token auto-refreshed successfully for user: ${user.email}`);
+          if (refreshedUser) {
+            req.user = refreshedUser;
+            logger.info(`✅ Token auto-refreshed successfully for user: ${refreshedUser.email}`);
             return next();
           }
         } catch (refreshError) {
@@ -112,7 +121,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
         }
       }
     }
-    
+
     return response.unauthorized(res, 'Not authorized, token failed');
   }
 };

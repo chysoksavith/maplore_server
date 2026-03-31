@@ -1,31 +1,18 @@
 import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService";
-import { registerSchema, loginSchema, updateProfileSchema } from "../utils/validation";
 import {
   registerSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyOtpSchema,
+  updateProfileSchema,
 } from "../utils/validation";
 import * as response from "../utils/response";
 import logger from "../utils/logger";
 import { uploadService } from "../services/UploadService";
 import { AuthRequest } from "../middleware/authMiddleware";
-import prisma from "../config/db";
 
-const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 15 * 60 * 1000, // 15 minutes
-  });
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 // ---------------------------------------------------------------------------
 // Cookie helper – centralised so options are always consistent
 // ---------------------------------------------------------------------------
@@ -63,12 +50,13 @@ export const register = async (
     // Explicitly strip roleId – privilege escalation prevention
     const { roleId, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
-      await authService.registerUser({ ...publicData, avatar: avatarUrl });
-    
-    setAuthCookies(res, accessToken, refreshToken);
+      await authService.registerUser(publicData);
+
+    setTokenCookie(res, refreshToken);
     logger.info(`New user registered: ${user.email}`);
     return response.created(res, "User created successfully", {
       userId: user.id,
+      accessToken,
     });
   } catch (error) {
     next(error);
@@ -97,10 +85,7 @@ export const adminCreateUser = async (
       avatarUrl = uploadRes.url;
     }
 
-    const { user, accessToken, refreshToken } =
-      await authService.registerUser({ ...validatedData, avatar: avatarUrl });
-    
-    const { user } = await authService.registerUser(validatedData);
+    const { user } = await authService.registerUser({ ...validatedData, avatar: avatarUrl });
     // Do NOT issue tokens for the admin's session – only return the new user's info
     return response.created(res, "User created by admin successfully", {
       user: {
@@ -116,6 +101,9 @@ export const adminCreateUser = async (
   }
 };
 
+// ---------------------------------------------------------------------------
+// Update profile (authenticated)
+// ---------------------------------------------------------------------------
 export const updateProfile = async (
   req: AuthRequest,
   res: Response,
@@ -185,6 +173,7 @@ export const login = async (
     setTokenCookie(res, refreshToken);
     return response.ok(res, "Login successful", {
       userId: user.id,
+      accessToken,
     });
   } catch (error) {
     next(error);
@@ -222,22 +211,15 @@ export const refresh = async (
   next: NextFunction,
 ) => {
   try {
-    const { refreshToken } = req.cookies;
+    const refreshToken = req.cookies[COOKIE_NAME];
     if (!refreshToken) {
       return response.unauthorized(res, "No refresh token provided");
     }
-    const { accessToken } = await authService.refreshAccessToken(refreshToken);
-    logger.info(`Access token refreshed via /refresh`);
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    });
-    return response.ok(res, "Token refreshed");
     const { accessToken, newRefreshToken } =
       await authService.refreshAccessToken(refreshToken);
+    // Rotate: replace old cookie with new one
     setTokenCookie(res, newRefreshToken);
+    logger.info(`Access token refreshed via /refresh`);
     return response.ok(res, "Token refreshed", { accessToken });
   } catch (error) {
     next(error);
@@ -253,21 +235,11 @@ export const logout = async (
   next: NextFunction,
 ) => {
   try {
-    const { refreshToken } = req.cookies;
+    const refreshToken = req.cookies[COOKIE_NAME];
     if (refreshToken) {
       await authService.logoutUser(refreshToken);
       logger.info('User logged out');
     }
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
     clearTokenCookie(res);
     return response.ok(res, "Logged out successfully");
   } catch (error) {

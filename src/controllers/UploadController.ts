@@ -44,8 +44,12 @@ export class UploadController {
 
   async updateAvatar(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const userId = parseInt(id);
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const userId = Number.parseInt(rawId, 10);
+
+      if (!Number.isInteger(userId)) {
+        return res.status(400).json({ error: 'Invalid user id' });
+      }
 
       if (!req.file) {
         return res.status(400).json({ error: 'No image provided for avatar' });

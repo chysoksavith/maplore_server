@@ -114,12 +114,6 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
     where: { email: email.toLowerCase() },
   });
 
-  if (!user.isActive) {
-    throw new Error("User account is inactive. Please contact support.");
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) throw new Error("Invalid credentials");
   // Constant-time comparison: always run bcrypt even when user is not found
   // so response time does not reveal whether the account exists.
   const dummyHash =
@@ -131,6 +125,10 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
 
   if (!user || !isPasswordValid) {
     throw new AppError("Invalid credentials", 401);
+  }
+
+  if (user.isActive === false) {
+    throw new AppError("User account is inactive. Please contact support.", 403);
   }
 
   const isOtpRequired = process.env.SEND_EMAIL_OTP === "true";
