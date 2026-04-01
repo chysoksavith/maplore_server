@@ -24,7 +24,7 @@ export const registerSchema = z.object({
     .trim(),
   password: passwordSchema,
   roleId: z.number().int().positive().optional(),
-  type: z.enum(['BACKEND', 'FRONTEND']).optional(),
+  type: z.enum(['ADMIN', 'USER']).optional(),
   isActive: z.boolean().optional(),
   avatar: z.string().optional(),
 });

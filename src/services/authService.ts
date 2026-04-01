@@ -17,6 +17,9 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1  hour
 const ACCESS_TOKEN_TTL = "15m";
 const REFRESH_TOKEN_TTL_DAYS = 7;
 const OTP_MAX_FAILED_ATTEMPTS = 5;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_TIME_MS = 30 * 60 * 1000; // 30 minutes
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,22 +117,59 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
     where: { email: email.toLowerCase() },
   });
 
-  // Constant-time comparison: always run bcrypt even when user is not found
-  // so response time does not reveal whether the account exists.
-  const dummyHash =
-    "$2a$12$invalidhashpaddedjusttokeepbcryptconstanttime000000000";
-  const isPasswordValid = await bcrypt.compare(
-    password,
-    user?.password ?? dummyHash,
-  );
-
-  if (!user || !isPasswordValid) {
+  if (!user) {
+    // Standard bcrypt dummy-hash to avoid timing leakage
+    const dummyHash = "$2a$12$invalidhashpaddedjusttokeepbcryptconstanttime000000000";
+    await bcrypt.compare(password, dummyHash);
     throw new AppError("Invalid credentials", 401);
   }
 
-  if (user.isActive === false) {
+  // 1. Check if user is banned
+  if (user.bannedAt) {
+    throw new AppError(`Account banned: ${user.bannedReason || "No reason provided"}`, 403);
+  }
+
+  // 2. Check if user is active
+  if (!user.isActive) {
     throw new AppError("User account is inactive. Please contact support.", 403);
   }
+
+  // 3. Check if user is locked (Brute-force protection)
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+    throw new AppError(`Account is temporarily locked. Try again in ${minutesLeft} minutes.`, 429);
+  }
+
+  // 4. Constant-time comparison
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    // Increment failed-attempt counter
+    const newAttempts = user.loginAttempts + 1;
+    const updateData: any = { loginAttempts: newAttempts };
+
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      updateData.lockedUntil = new Date(Date.now() + LOCK_TIME_MS);
+      logger.warn(`Account locked due to too many failed attempts: ${user.email}`);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    throw new AppError("Invalid credentials", 401);
+  }
+
+  // 5. Success – Reset attempts, set lastLoginAt
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      loginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date(),
+    },
+  });
 
   const isOtpRequired = process.env.SEND_EMAIL_OTP === "true";
 

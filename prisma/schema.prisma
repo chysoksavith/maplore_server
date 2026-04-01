@@ -44,37 +44,53 @@ model RolePermission {
 }
 
 model User {
-  id                   Int            @id @default(autoincrement())
-  email                String         @unique
-  name                 String?
-  password             String
-  type                 UserType       @default(FRONTEND)
-  isActive             Boolean        @default(true)
-  roleId               Int?
-  role                 Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  avatar               String?
-  resetPasswordToken   String?        @unique
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  name          String?
+  password      String
+  type          UserType  @default(USER)
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+
+  // Auth & security
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+  lastLoginAt   DateTime?
+
+  // Password reset
+  resetPasswordToken   String?   @unique
   resetPasswordExpires DateTime?
-  otpCode              String?        @unique
-  otpExpires           DateTime?
-  otpAttempts          Int            @default(0)
-  refreshTokens        RefreshToken[]
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+
+  // OTP / 2FA
+  otpCode       String?   @unique
+  otpExpires    DateTime?
+  otpAttempts   Int       @default(0)
+
+  // Moderation
+  bannedAt      DateTime?
+  bannedReason  String?
+
+  // Profile
+  avatar        String?
+
+  // Relations
+  roleId        Int?
+  role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([roleId])
-  @@index([createdAt])
-  @@index([isActive])
   @@index([type])
-  @@index([avatar])
-  @@index([resetPasswordToken])
-  @@index([otpCode])
+  @@index([isActive])
+  @@index([createdAt])
   @@map("users")
 }
 
 enum UserType {
-  BACKEND
-  FRONTEND
+  ADMIN
+  USER
 }
 
 model RefreshToken {

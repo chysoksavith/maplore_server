@@ -10,6 +10,8 @@ export interface AuthenticatedUser {
   email: string;
   name: string | null;
   avatar: string | null;
+  isActive: boolean;
+  bannedAt: Date | null;
   role: {
     name: string;
     permissions: { permission: { action: string; subject: string } }[];
@@ -33,6 +35,8 @@ const getUserWithPermissions = async (userId: number): Promise<AuthenticatedUser
       email: true,
       name: true,
       avatar: true,
+      isActive: true,
+      bannedAt: true,
       createdAt: true,
       updatedAt: true,
       role: {
@@ -76,6 +80,14 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
     if (!user) {
       return response.unauthorized(res, 'User not found');
+    }
+
+    if (!user.isActive) {
+      return response.forbidden(res, 'User account is inactive. Please contact support.');
+    }
+
+    if (user.bannedAt) {
+      return response.forbidden(res, 'User account is banned.');
     }
 
     req.user = user;

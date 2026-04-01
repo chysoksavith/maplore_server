@@ -47,8 +47,8 @@ export const register = async (
 ) => {
   try {
     const validatedData = registerSchema.parse(req.body);
-    // Explicitly strip roleId – privilege escalation prevention
-    const { roleId, ...publicData } = validatedData;
+    // Explicitly strip sensitive fields – privilege escalation prevention
+    const { roleId, type, isActive, ...publicData } = validatedData;
     const { user, accessToken, refreshToken } =
       await authService.registerUser(publicData);
 
