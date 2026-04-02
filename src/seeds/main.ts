@@ -1,9 +1,16 @@
 import prisma from '../config/db';
+import bcrypt from 'bcryptjs';
 
 async function main() {
-  console.log('Seeding initial roles and permissions...');
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@maplore.com').toLowerCase();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@1234';
+  const userEmail = (process.env.SEED_USER_EMAIL || 'user@maplore.com').toLowerCase();
+  const userPassword = process.env.SEED_USER_PASSWORD || 'User@1234';
+  const passwordHashAdmin = await bcrypt.hash(adminPassword, 12);
+  const passwordHashUser = await bcrypt.hash(userPassword, 12);
 
-  // 1. Create Permissions
+  console.log('Seeding initial roles, permissions, and default accounts...');
+
   const permissionsData = [
     { action: 'manage', subject: 'all', description: 'Total control' },
     { action: 'manage', subject: 'Role', description: 'Can manage roles and permissions' },
@@ -22,17 +29,14 @@ async function main() {
   }
 
   const allPermissions = await prisma.permission.findMany();
-  const getPermId = (action: string, subject: string) => 
+  const getPermId = (action: string, subject: string) =>
     allPermissions.find(p => p.action === action && p.subject === subject)?.id;
 
-  // 2. Create Roles
-  
-  // SUPERADMIN
-  const superAdminRole = await prisma.role.upsert({
-    where: { name: 'SUPERADMIN' },
+  const adminRole = await prisma.role.upsert({
+    where: { name: 'ADMIN' },
     update: {},
     create: {
-      name: 'SUPERADMIN',
+      name: 'ADMIN',
       description: 'System administrator with full access',
     },
   });
@@ -40,37 +44,13 @@ async function main() {
   const manageAllId = getPermId('manage', 'all');
   if (manageAllId) {
     await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: superAdminRole.id, permissionId: manageAllId } },
+      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: manageAllId } },
       update: {},
-      create: { roleId: superAdminRole.id, permissionId: manageAllId },
+      create: { roleId: adminRole.id, permissionId: manageAllId },
     });
   }
 
-  // BACKEND_USER
-  const backendUserRole = await prisma.role.upsert({
-    where: { name: 'BACKEND_USER' },
-    update: {},
-    create: {
-      name: 'BACKEND_USER',
-      description: 'Staff member with dashboard access',
-    },
-  });
-
-  const backendPerms = [
-    getPermId('manage', 'Dashboard'),
-    getPermId('read', 'User'),
-  ].filter(Boolean) as number[];
-
-  for (const pId of backendPerms) {
-    await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: backendUserRole.id, permissionId: pId } },
-      update: {},
-      create: { roleId: backendUserRole.id, permissionId: pId },
-    });
-  }
-
-  // USER
-  await prisma.role.upsert({
+  const userRole = await prisma.role.upsert({
     where: { name: 'USER' },
     update: {},
     create: {
@@ -79,7 +59,81 @@ async function main() {
     },
   });
 
-  console.log('Seeding completed successfully.');
+  const userPerms = [
+    getPermId('read', 'User'),
+  ].filter(Boolean) as number[];
+
+  for (const pId of userPerms) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: userRole.id, permissionId: pId } },
+      update: {},
+      create: { roleId: userRole.id, permissionId: pId },
+    });
+  }
+
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      name: 'Maplore Admin',
+      password: passwordHashAdmin,
+      type: 'ADMIN',
+      isActive: true,
+      emailVerified: true,
+      roleId: adminRole.id,
+      bannedAt: null,
+      bannedReason: null,
+      lockedUntil: null,
+      loginAttempts: 0,
+      otpCode: null,
+      otpExpires: null,
+      otpAttempts: 0,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    },
+    create: {
+      email: adminEmail,
+      name: 'Maplore Admin',
+      password: passwordHashAdmin,
+      type: 'ADMIN',
+      isActive: true,
+      emailVerified: true,
+      roleId: adminRole.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: userEmail },
+    update: {
+      name: 'Maplore User',
+      password: passwordHashUser,
+      type: 'USER',
+      isActive: true,
+      emailVerified: true,
+      roleId: userRole.id,
+      bannedAt: null,
+      bannedReason: null,
+      lockedUntil: null,
+      loginAttempts: 0,
+      otpCode: null,
+      otpExpires: null,
+      otpAttempts: 0,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    },
+    create: {
+      email: userEmail,
+      name: 'Maplore User',
+      password: passwordHashUser,
+      type: 'USER',
+      isActive: true,
+      emailVerified: true,
+      roleId: userRole.id,
+    },
+  });
+
+  console.log(`Seeded admin account: ${adminEmail}`);
+  console.log(`Seeded user account: ${userEmail}`);
+  console.log('Seeding completed successfully');
 }
 
 main()

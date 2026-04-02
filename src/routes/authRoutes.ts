@@ -3,6 +3,7 @@ import * as authController from '../controllers/authController';
 import {
   loginLimiter,
   otpLimiter,
+  resendOtpLimiter,
   forgotPasswordLimiter,
   resetPasswordLimiter,
 } from '../middleware/rateLimiter';
@@ -13,6 +14,7 @@ const router = express.Router();
 router.post('/register',        authController.register);
 router.post('/login',           loginLimiter,          authController.login);
 router.post('/verify-otp',      otpLimiter,            authController.verifyOtp);
+router.post('/resend-otp',      resendOtpLimiter,      authController.resendOtp);
 router.post('/refresh',         authController.refresh);
 router.post('/logout',          authController.logout);
 

@@ -6,6 +6,7 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyOtpSchema,
+  resendOtpSchema,
   updateProfileSchema,
 } from "../utils/validation";
 import * as response from "../utils/response";
@@ -196,6 +197,23 @@ export const verifyOtp = async (
     return response.ok(res, "Verification successful", {
       userId: user.id,
       accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendOtp = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { email } = resendOtpSchema.parse(req.body);
+    const result = await authService.resendLoginOtp(email);
+    return response.ok(res, "If the account is eligible, a new verification code has been sent.", {
+      otpRequired: true,
+      email: result.email,
     });
   } catch (error) {
     next(error);

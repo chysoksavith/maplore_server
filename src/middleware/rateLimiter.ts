@@ -56,6 +56,18 @@ export const otpLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+export const resendOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_RESEND_OTP_MAX || '5', 10),
+  message: {
+    status: false,
+    message: 'Too many OTP resend requests, please try again after 15 minutes',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+});
+
 // ---------------------------------------------------------------------------
 // Forgot-password – throttle email-sending to prevent abuse / enumeration
 // 3 per hour is the industry-standard default.

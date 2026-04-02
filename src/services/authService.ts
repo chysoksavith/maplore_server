@@ -32,6 +32,41 @@ const LOCK_TIME_MS = 30 * 60 * 1000; // 30 minutes
 const generateOtp = (): string =>
   crypto.randomInt(100_000, 999_999).toString();
 
+const isEnvFlagEnabled = (value: string | undefined): boolean => {
+  const normalized = (value || "").trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+};
+
+const issueLoginOtp = async (userId: number, email: string) => {
+  const otp = generateOtp();
+  const otpExpires = new Date(Date.now() + OTP_TTL_MS);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      otpCode: otp,
+      otpExpires,
+      otpAttempts: 0,
+    },
+  });
+
+  await sendEmail({
+    to: email,
+    subject: "Your Login Verification Code",
+    text: `Your verification code is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, please ignore this email.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px; color: #111;">
+        <h2 style="margin-top:0;">Login Verification</h2>
+        <p>Use the code below to complete your sign-in. It is valid for <strong>10 minutes</strong>.</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background: #f3f4f6; border-radius: 6px; margin: 24px 0;">
+          ${otp}
+        </div>
+        <p style="color:#666; font-size:13px;">If you did not attempt to log in, you can safely ignore this email. Do <strong>not</strong> share this code with anyone.</p>
+      </div>
+    `,
+  });
+};
+
 const generateTokens = async (userId: number) => {
   const accessToken = jwt.sign(
     { userId },
@@ -171,36 +206,10 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
     },
   });
 
-  const isOtpRequired = process.env.SEND_EMAIL_OTP === "true";
+  const isOtpRequired = isEnvFlagEnabled(process.env.SEND_EMAIL_OTP);
 
   if (isOtpRequired) {
-    const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + OTP_TTL_MS);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        otpCode: otp,
-        otpExpires,
-        otpAttempts: 0, // reset failed-attempt counter on new OTP issuance
-      },
-    });
-
-    await sendEmail({
-      to: user.email,
-      subject: "Your Login Verification Code",
-      text: `Your verification code is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, please ignore this email.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px; color: #111;">
-          <h2 style="margin-top:0;">Login Verification</h2>
-          <p>Use the code below to complete your sign-in. It is valid for <strong>10 minutes</strong>.</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background: #f3f4f6; border-radius: 6px; margin: 24px 0;">
-            ${otp}
-          </div>
-          <p style="color:#666; font-size:13px;">If you did not attempt to log in, you can safely ignore this email. Do <strong>not</strong> share this code with anyone.</p>
-        </div>
-      `,
-    });
+    await issueLoginOtp(user.id, user.email);
 
     return { otpRequired: true, email: user.email };
   }
@@ -266,6 +275,22 @@ export const verifyLoginOtp = async (email: string, otp: string) => {
 
   const tokens = await generateTokens(user.id);
   return { user, ...tokens };
+};
+
+export const resendLoginOtp = async (email: string) => {
+  if (!isEnvFlagEnabled(process.env.SEND_EMAIL_OTP)) {
+    throw new AppError("OTP verification is disabled", 400);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+
+  if (user && user.isActive && !user.bannedAt) {
+    await issueLoginOtp(user.id, user.email);
+  }
+
+  return { otpRequired: true, email: email.toLowerCase() };
 };
 
 // ---------------------------------------------------------------------------
@@ -353,7 +378,7 @@ export const forgotPassword = async (email: string) => {
     "http://localhost:5173"
   }/reset-password/${resetToken}`;
 
-  if (process.env.SEND_EMAIL_OTP !== "true") {
+  if (!isEnvFlagEnabled(process.env.SEND_EMAIL_OTP)) {
     // Development bypass: log the link but do NOT expose it in the API response
     logger.info(`[DEV] Password reset link for ${user.email}: ${resetUrl}`);
     return;
