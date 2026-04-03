@@ -12,6 +12,17 @@ const passwordSchema = z
   .regex(/[0-9]/, 'Password must contain at least one number')
   .regex(/[\W_]/, 'Password must contain at least one special character');
 
+ const paginationSchema = z.coerce.number().int().positive();
+
+ const createListQuerySchema = <TSortFields extends readonly [string, ...string[]]>(sortFields: TSortFields) =>
+   z.object({
+     page: paginationSchema.default(1),
+     limit: paginationSchema.max(100).default(10),
+     search: z.string().trim().max(100).optional(),
+     sortBy: z.enum(sortFields).default(sortFields[0]),
+     sortOrder: z.enum(['asc', 'desc']).default('desc'),
+   });
+
 // ---------------------------------------------------------------------------
 // Register
 // ---------------------------------------------------------------------------
@@ -86,3 +97,17 @@ export const verifyOtpSchema = z.object({
 export const resendOtpSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase(),
 });
+
+ export const listUsersQuerySchema = createListQuerySchema([
+   'createdAt',
+   'updatedAt',
+   'name',
+   'email',
+ ]).extend({
+   roleId: z.coerce.number().int().positive().optional(),
+   type: z.enum(['ADMIN', 'USER']).optional(),
+   isActive: z
+     .enum(['true', 'false'])
+     .transform((value) => value === 'true')
+     .optional(),
+ });

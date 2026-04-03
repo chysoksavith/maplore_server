@@ -4,9 +4,17 @@ import { canManage } from "../middleware/authorize";
 import * as response from "../utils/response";
 
 import * as authController from "../controllers/authController";
+import * as userController from "../controllers/userController";
 import { uploadMiddleware } from "../middleware/upload";
 
 const router = express.Router();
+
+router.get(
+  "/",
+  protect,
+  canManage("User"),
+  userController.listUsers,
+);
 
 router.get("/profile", protect, (req: AuthRequest, res) => {
   const user = req.user
@@ -45,16 +53,5 @@ router.post(
   authController.adminCreateUser,
 );
 
-// Example: Only SUPERADMIN or BACKEND_USER (who can manage 'Dashboard') will be able to access this endpoint
-router.get(
-  "/dashboard-stats",
-  protect,
-  canManage("Dashboard"),
-  (req: AuthRequest, res) => {
-    return response.ok(res, "Dashboard stats retrieved", {
-      stats: { users: 150, items: 300 },
-    });
-  },
-);
 
 export default router;
