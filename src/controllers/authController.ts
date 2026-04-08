@@ -75,6 +75,8 @@ export const adminCreateUser = async (
         id: user.id,
         email: user.email,
         name: user.name,
+        phoneNumber: user.phoneNumber,
+        gender: user.gender,
         roleId: user.roleId,
         avatar: user.avatar,
       },
@@ -122,6 +124,8 @@ export const updateProfile = async (
         id: updatedUser.id,
         email: updatedUser.email,
         name: updatedUser.name,
+        phoneNumber: updatedUser.phoneNumber,
+        gender: updatedUser.gender,
         avatar: updatedUser.avatar,
       },
     });

@@ -15,6 +15,8 @@ export interface AuthenticatedUser {
   id: number;
   email: string;
   name: string | null;
+  phoneNumber: string | null;
+  gender: string | null;
   avatar: string | null;
   isActive: boolean;
   bannedAt: Date | null;
@@ -40,6 +42,8 @@ const getUserWithPermissions = async (userId: number): Promise<AuthenticatedUser
       id: true,
       email: true,
       name: true,
+      phoneNumber: true,
+      gender: true,
       avatar: true,
       isActive: true,
       bannedAt: true,

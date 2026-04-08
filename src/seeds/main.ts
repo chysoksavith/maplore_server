@@ -2,7 +2,7 @@ import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 
 async function main() {
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@maplore.com').toLowerCase();
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'chysavith089@gmail.com').toLowerCase();
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@1234';
   const userEmail = (process.env.SEED_USER_EMAIL || 'user@maplore.com').toLowerCase();
   const userPassword = process.env.SEED_USER_PASSWORD || 'User@1234';

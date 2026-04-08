@@ -48,6 +48,8 @@ model User {
   email         String    @unique
   name          String?
   password      String
+  phoneNumber   String?
+  gender        Gender?
   type          UserType  @default(USER)
   isActive      Boolean   @default(true)
   emailVerified Boolean   @default(false)
@@ -91,6 +93,12 @@ model User {
 enum UserType {
   ADMIN
   USER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }
 
 model RefreshToken {

@@ -22,6 +22,8 @@ router.get("/profile", protect, (req: AuthRequest, res) => {
         id: req.user.id,
         email: req.user.email,
         name: req.user.name,
+        phoneNumber: req.user.phoneNumber,
+        gender: req.user.gender,
         avatar: req.user.avatar,
         role: req.user.role ? { name: req.user.role.name } : null,
         ...(req.user.role?.name === "ADMIN"

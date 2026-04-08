@@ -90,7 +90,7 @@ const generateTokens = async (userId: number) => {
 export const registerUser = async (
   userData: z.infer<typeof registerSchema>,
 ) => {
-  const { email, name, password, roleId, type, isActive, avatar } = userData;
+  const { email, name, password, phoneNumber, gender, roleId, type, isActive, avatar } = userData;
 
   // Case-insensitive duplicate-email check
   const existingUser = await prisma.user.findUnique({
@@ -113,6 +113,8 @@ export const registerUser = async (
       email: email.toLowerCase(),
       name,
       password: hashedPassword,
+      phoneNumber,
+      gender,
       roleId: finalRoleId || null,
       type: type as any,
       isActive: isActive ?? true,
@@ -126,12 +128,14 @@ export const registerUser = async (
 
 export const updateUserProfile = async (
   userId: number,
-  profileData: { name?: string; password?: string; avatar?: string }
+  profileData: { name?: string; password?: string; phoneNumber?: string; gender?: string; avatar?: string }
 ) => {
   const data: any = {};
   
   if (profileData.name) data.name = profileData.name;
   if (profileData.password) data.password = await bcrypt.hash(profileData.password, 10);
+  if (profileData.phoneNumber) data.phoneNumber = profileData.phoneNumber;
+  if (profileData.gender) data.gender = profileData.gender;
   if (profileData.avatar) data.avatar = profileData.avatar;
 
   const user = await prisma.user.update({

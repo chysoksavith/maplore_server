@@ -34,6 +34,8 @@ export const registerSchema = z.object({
     .max(100, 'Name must be at most 100 characters long')
     .trim(),
   password: passwordSchema,
+  phoneNumber: z.string().min(8).max(20).optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
   roleId: z.number().int().positive().optional(),
   type: z.enum(['ADMIN', 'USER']).optional(),
   isActive: z.boolean().optional(),
@@ -51,6 +53,8 @@ export const updateProfileSchema = z.object({
     .trim()
     .optional(),
   password: passwordSchema.optional(),
+  phoneNumber: z.string().min(8).max(20).optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
   avatar: z.string().optional(),
 });
 

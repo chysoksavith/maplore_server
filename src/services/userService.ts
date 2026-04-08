@@ -51,6 +51,8 @@ export const listUsers = async (query: ListUsersQuery) => {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
+        gender: true,
         type: true,
         isActive: true,
         emailVerified: true,
