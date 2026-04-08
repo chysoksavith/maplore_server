@@ -4,6 +4,12 @@ import prisma from '../config/db';
 import * as response from '../utils/response';
 import * as authService from '../services/authService';
 import logger from '../utils/logger';
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_COOKIE_NAME,
+  setAccessTokenCookie,
+  setRefreshTokenCookie,
+} from '../utils/authCookies';
 
 export interface AuthenticatedUser {
   id: number;
@@ -62,7 +68,7 @@ const getUserWithPermissions = async (userId: number): Promise<AuthenticatedUser
 // protect middleware
 // ---------------------------------------------------------------------------
 export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  let token = req.cookies.accessToken;
+  let token = req.cookies[ACCESS_TOKEN_COOKIE_NAME];
 
   if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
@@ -95,7 +101,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
   } catch (error: any) {
     // If access token is expired, try to auto-refresh using the refresh token cookie
     if (error.name === 'TokenExpiredError') {
-      const refreshToken = req.cookies.refreshToken;
+      const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
 
       if (refreshToken) {
         try {
@@ -105,19 +111,8 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
             await authService.refreshAccessToken(refreshToken);
 
           // Rotate cookies
-          res.cookie('accessToken', newAccessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 15 * 60 * 1000, // 15 minutes
-          });
-          res.cookie('refreshToken', newRefreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/api/auth',
-          });
+          setAccessTokenCookie(res, newAccessToken);
+          setRefreshTokenCookie(res, newRefreshToken);
 
           // Verify the newly generated token
           const newDecoded = jwt.verify(newAccessToken, process.env.JWT_SECRET as string) as { userId: number };

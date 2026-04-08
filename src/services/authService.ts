@@ -11,14 +11,14 @@ import logger from "../utils/logger";
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const BCRYPT_ROUNDS = 12; // OWASP recommends ≥12
-const OTP_TTL_MS = 10 * 60 * 1000;         // 10 minutes
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1  hour
-const ACCESS_TOKEN_TTL = "15m";
-const REFRESH_TOKEN_TTL_DAYS = 7;
-const OTP_MAX_FAILED_ATTEMPTS = 5;
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCK_TIME_MS = 30 * 60 * 1000; // 30 minutes
+const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || "12", 10);
+const OTP_TTL_MS = parseInt(process.env.OTP_TTL_MINUTES || "10", 10) * 60 * 1000;
+const RESET_TOKEN_TTL_MS = parseInt(process.env.RESET_TOKEN_TTL_MINUTES || "60", 10) * 60 * 1000;
+const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || "15m") as `${number}${"s" | "m" | "h" | "d" | "w" | "y"}`;
+const REFRESH_TOKEN_TTL_DAYS = parseInt(process.env.JWT_REFRESH_TOKEN_EXPIRES_IN_DAYS || "7", 10);
+const OTP_MAX_FAILED_ATTEMPTS = parseInt(process.env.OTP_MAX_FAILED_ATTEMPTS || "5", 10);
+const MAX_LOGIN_ATTEMPTS = parseInt(process.env.MAX_LOGIN_ATTEMPTS || "5", 10);
+const LOCK_TIME_MS = parseInt(process.env.LOCK_TIME_MINUTES || "30", 10) * 60 * 1000;
 
 
 // ---------------------------------------------------------------------------

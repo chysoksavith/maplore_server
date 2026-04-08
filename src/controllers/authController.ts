@@ -13,30 +13,12 @@ import * as response from "../utils/response";
 import logger from "../utils/logger";
 import { uploadService } from "../services/UploadService";
 import { AuthRequest } from "../middleware/authMiddleware";
-
-// ---------------------------------------------------------------------------
-// Cookie helper – centralised so options are always consistent
-// ---------------------------------------------------------------------------
-const COOKIE_NAME = "refreshToken";
-
-const setTokenCookie = (res: Response, refreshToken: string) => {
-  res.cookie(COOKIE_NAME, refreshToken, {
-    httpOnly: true,                                           // not accessible via JS
-    secure: process.env.NODE_ENV === "production",            // HTTPS-only in prod
-    sameSite: "strict",                                       // CSRF protection
-    maxAge: 7 * 24 * 60 * 60 * 1000,                         // 7 days in ms
-    path: "/api/auth",                                        // scope cookie to auth routes only
-  });
-};
-
-const clearTokenCookie = (res: Response) => {
-  res.clearCookie(COOKIE_NAME, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/auth",
-  });
-};
+import {
+  REFRESH_TOKEN_COOKIE_NAME,
+  clearAllAuthCookies,
+  setAccessTokenCookie,
+  setRefreshTokenCookie,
+} from "../utils/authCookies";
 
 // ---------------------------------------------------------------------------
 // Register (public sign-up)
@@ -53,11 +35,11 @@ export const register = async (
     const { user, accessToken, refreshToken } =
       await authService.registerUser(publicData);
 
-    setTokenCookie(res, refreshToken);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
     logger.info(`New user registered: ${user.email}`);
     return response.created(res, "User created successfully", {
       userId: user.id,
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -171,10 +153,10 @@ export const login = async (
     }
 
     const { user, accessToken, refreshToken } = result;
-    setTokenCookie(res, refreshToken);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
     return response.ok(res, "Login successful", {
       userId: user.id,
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -193,10 +175,10 @@ export const verifyOtp = async (
     const { email, otp } = verifyOtpSchema.parse(req.body);
     const { user, accessToken, refreshToken } =
       await authService.verifyLoginOtp(email, otp);
-    setTokenCookie(res, refreshToken);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
     return response.ok(res, "Verification successful", {
       userId: user.id,
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -229,16 +211,17 @@ export const refresh = async (
   next: NextFunction,
 ) => {
   try {
-    const refreshToken = req.cookies[COOKIE_NAME];
+    const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
     if (!refreshToken) {
       return response.unauthorized(res, "No refresh token provided");
     }
     const { accessToken, newRefreshToken } =
       await authService.refreshAccessToken(refreshToken);
     // Rotate: replace old cookie with new one
-    setTokenCookie(res, newRefreshToken);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, newRefreshToken);
     logger.info(`Access token refreshed via /refresh`);
-    return response.ok(res, "Token refreshed", { accessToken });
+    return response.ok(res, "Token refreshed");
   } catch (error) {
     next(error);
   }
@@ -253,12 +236,12 @@ export const logout = async (
   next: NextFunction,
 ) => {
   try {
-    const refreshToken = req.cookies[COOKIE_NAME];
+    const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
     if (refreshToken) {
       await authService.logoutUser(refreshToken);
       logger.info('User logged out');
     }
-    clearTokenCookie(res);
+    clearAllAuthCookies(res);
     return response.ok(res, "Logged out successfully");
   } catch (error) {
     next(error);
