@@ -55,5 +55,14 @@ router.post(
   authController.adminCreateUser,
 );
 
+/**
+ * Admin: Update a user by ID.
+ */
+router.patch(
+  "/:id",
+  protect,
+  canManage("User"),
+  userController.updateUser,
+);
 
 export default router;

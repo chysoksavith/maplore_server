@@ -115,3 +115,14 @@ export const resendOtpSchema = z.object({
      .transform((value) => value === 'true')
      .optional(),
  });
+
+export const updateUserSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  email: z.string().email().toLowerCase().optional(),
+  password: z.string().min(8).optional(),
+  phoneNumber: z.string().min(8).max(20).optional(),
+  type: z.enum(['ADMIN', 'USER']).optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  isActive: z.boolean().optional(),
+  roleId: z.number().int().positive().optional(),
+});

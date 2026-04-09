@@ -85,3 +85,55 @@ export const listUsers = async (query: ListUsersQuery) => {
     },
   };
 };
+
+export const updateUser = async (
+  id: number,
+  data: {
+    name?: string;
+    email?: string;
+    password?: string;
+    phoneNumber?: string;
+    type?: 'ADMIN' | 'USER';
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
+    isActive?: boolean;
+    roleId?: number;
+  },
+) => {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, name: true },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const updateData: Prisma.UserUpdateInput = {};
+
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber;
+  if (data.type !== undefined) updateData.type = data.type;
+  if (data.gender !== undefined) updateData.gender = data.gender;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  if (data.roleId !== undefined) updateData.role = { connect: { id: data.roleId } };
+  if (data.password) {
+    const bcrypt = await import('bcryptjs');
+    updateData.password = await bcrypt.hash(data.password, 10);
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id },
+    data: updateData,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      type: true,
+      isActive: true,
+      updatedAt: true,
+    },
+  });
+
+  return updatedUser;
+};
