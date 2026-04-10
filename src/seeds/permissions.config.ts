@@ -133,49 +133,72 @@ export function generateAllPermissions(routesDir: string, additionalPerms: Gener
 // ============================================
 // ROLE DEFINITIONS
 // ============================================
+
 export interface RoleDefinition {
   name: string;
   description: string;
-  permissions: string[]; // Format: "action:subject" or "all" for manage:all
+  /**
+   * Action patterns to match against permissions
+   * Use '*' to match all actions, or specific actions like ['read', 'create']
+   */
+  allowedActions?: string[];
+  /**
+   * Subject patterns to match against permissions
+   * Use '*' to match all subjects, or specific subjects
+   */
+  allowedSubjects?: string[];
+  /**
+   * Specific permissions to exclude (exact format: "action:subject")
+   * Useful for denying specific permissions even if they match patterns
+   */
+  excludedPermissions?: string[];
+  /**
+   * Special permissions like 'manage:all' for super admin
+   */
+  specialPermissions?: string[];
 }
 
+/**
+ * Pattern-based role definitions
+ * These automatically match against dynamically generated permissions from routes
+ * When new routes are added, roles automatically get matching permissions
+ */
 export const roleDefinitions: RoleDefinition[] = [
   {
     name: 'ADMIN',
     description: 'System administrator with full access',
-    permissions: ['all'],
+    specialPermissions: ['all'], // Gets manage:all permission
   },
   {
     name: 'MODERATOR',
-    description: 'Can manage users and view reports but cannot manage roles',
-    permissions: [
-      'create:User',
-      'read:User',
-      'update:User',
-      'ban:User',
-      'access:Dashboard',
-      'view:Dashboard',
-      'read:Report',
-      'read:Role',
+    description: 'Can manage most resources but cannot manage roles or system settings',
+    allowedActions: ['read', 'create', 'update', 'delete'],
+    allowedSubjects: ['*'], // All subjects
+    excludedPermissions: [
+      'manage:Role',
+      'delete:Role',
+      'manage:Settings',
+      'delete:Settings',
     ],
   },
   {
     name: 'USER',
-    description: 'Standard application user',
-    permissions: [
-      'read:User',
+    description: 'Standard application user with read-only access',
+    allowedActions: ['read'],
+    allowedSubjects: ['*'], // All subjects
+    excludedPermissions: [
+      'read:Role',
     ],
   },
   {
     name: 'MANAGER',
-    description: 'Can manage reports and view dashboard',
-    permissions: [
-      'read:User',
-      'read:Report',
-      'export:Report',
-      'access:Dashboard',
-      'view:Dashboard',
-      'read:Settings',
+    description: 'Can read and create resources, but cannot delete or manage system settings',
+    allowedActions: ['read', 'create', 'update'],
+    allowedSubjects: ['*'], // All subjects
+    excludedPermissions: [
+      'delete:*',
+      'manage:Role',
+      'manage:Settings',
     ],
   },
 ];

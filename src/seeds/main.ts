@@ -53,7 +53,7 @@ async function main() {
   const createdRoles: Record<string, { id: number }> = {};
 
   for (const roleDef of roleDefinitions) {
-    const role = await seedRole(roleDef, getPermId);
+    const role = await seedRole(roleDef, getPermId, allPermissions as GeneratedPermission[]);
     createdRoles[roleDef.name] = role;
   }
 
@@ -147,7 +147,8 @@ async function main() {
  */
 async function seedRole(
   roleDef: RoleDefinition,
-  getPermId: (action: string, subject: string) => number | undefined
+  getPermId: (action: string, subject: string) => number | undefined,
+  allPermissions: GeneratedPermission[]
 ) {
   // Create/update role
   const role = await prisma.role.upsert({
@@ -162,15 +163,65 @@ async function seedRole(
   // Resolve permission IDs
   let permissionIds: number[] = [];
 
-  for (const permString of roleDef.permissions) {
-    if (permString === 'all') {
-      // Special case: grant 'manage:all' permission
-      const allPermId = getPermId('manage', 'all');
-      if (allPermId) permissionIds.push(allPermId);
-    } else {
-      const [action, subject] = permString.split(':');
-      const permId = getPermId(action, subject);
-      if (permId) permissionIds.push(permId);
+  // Handle special permissions (like 'all' for manage:all)
+  if (roleDef.specialPermissions) {
+    for (const specialPerm of roleDef.specialPermissions) {
+      if (specialPerm === 'all') {
+        const allPermId = getPermId('manage', 'all');
+        if (allPermId) permissionIds.push(allPermId);
+      } else {
+        const [action, subject] = specialPerm.split(':');
+        const permId = getPermId(action, subject);
+        if (permId) permissionIds.push(permId);
+      }
+    }
+  }
+
+  // Handle pattern-based permission matching
+  if (roleDef.allowedActions || roleDef.allowedSubjects) {
+    for (const perm of allPermissions) {
+      // Skip manage:all permission (handled separately)
+      if (perm.subject === 'all') continue;
+
+      // Check if action matches pattern
+      const actionMatches = roleDef.allowedActions?.includes('*') ||
+        roleDef.allowedActions?.includes(perm.action) ||
+        !roleDef.allowedActions;
+
+      // Check if subject matches pattern
+      const subjectMatches = roleDef.allowedSubjects?.includes('*') ||
+        roleDef.allowedSubjects?.includes(perm.subject) ||
+        !roleDef.allowedSubjects;
+
+      if (actionMatches && subjectMatches) {
+        const permId = getPermId(perm.action, perm.subject);
+        if (permId) permissionIds.push(permId);
+      }
+    }
+  }
+
+  // Handle exclusions (remove permissions that match exclusion patterns)
+  if (roleDef.excludedPermissions) {
+    for (const exclusion of roleDef.excludedPermissions) {
+      const [excludedAction, excludedSubject] = exclusion.split(':');
+
+      if (excludedAction === '*') {
+        // Exclude all actions for this subject
+        permissionIds = permissionIds.filter(id => {
+          const perm = allPermissions.find(p => getPermId(p.action, p.subject) === id);
+          return perm?.subject !== excludedSubject;
+        });
+      } else if (excludedSubject === '*') {
+        // Exclude this action for all subjects
+        permissionIds = permissionIds.filter(id => {
+          const perm = allPermissions.find(p => getPermId(p.action, p.subject) === id);
+          return perm?.action !== excludedAction;
+        });
+      } else {
+        // Exclude exact permission
+        const excludedPermId = getPermId(excludedAction, excludedSubject);
+        permissionIds = permissionIds.filter(id => id !== excludedPermId);
+      }
     }
   }
 
