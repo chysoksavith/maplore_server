@@ -4,8 +4,12 @@ import * as response from '../utils/response';
 
 export const getRoles = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const roles = await roleService.getAllRoles();
-    return response.ok(res, 'Roles retrieved', { roles });
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const search = req.query.search as string | undefined;
+
+    const result = await roleService.getAllRoles({ page, limit, search });
+    return response.ok(res, 'Roles retrieved', result);
   } catch (err) { next(err); }
 };
 
