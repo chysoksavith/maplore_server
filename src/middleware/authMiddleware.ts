@@ -20,6 +20,7 @@ export interface AuthenticatedUser {
   avatar: string | null;
   isActive: boolean;
   bannedAt: Date | null;
+  type: "ADMIN" | "USER";
   role: {
     name: string;
     permissions: { permission: { action: string; subject: string } }[];
@@ -46,6 +47,7 @@ const getUserWithPermissions = async (userId: number): Promise<AuthenticatedUser
       gender: true,
       avatar: true,
       isActive: true,
+      type: true,
       bannedAt: true,
       createdAt: true,
       updatedAt: true,

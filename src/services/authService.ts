@@ -67,9 +67,9 @@ const issueLoginOtp = async (userId: number, email: string) => {
   });
 };
 
-const generateTokens = async (userId: number) => {
+const generateTokens = async (userId: number, userType: "ADMIN" | "USER" = "USER") => {
   const accessToken = jwt.sign(
-    { userId },
+    { userId, type: userType },
     process.env.JWT_SECRET as string,
     { expiresIn: ACCESS_TOKEN_TTL },
   );
@@ -122,28 +122,8 @@ export const registerUser = async (
     },
   });
 
-  const tokens = await generateTokens(user.id);
+  const tokens = await generateTokens(user.id, user.type as "ADMIN" | "USER");
   return { user, ...tokens };
-};
-
-export const updateUserProfile = async (
-  userId: number,
-  profileData: { name?: string; password?: string; phoneNumber?: string; gender?: string; avatar?: string }
-) => {
-  const data: any = {};
-  
-  if (profileData.name) data.name = profileData.name;
-  if (profileData.password) data.password = await bcrypt.hash(profileData.password, 10);
-  if (profileData.phoneNumber) data.phoneNumber = profileData.phoneNumber;
-  if (profileData.gender) data.gender = profileData.gender;
-  if (profileData.avatar) data.avatar = profileData.avatar;
-
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data,
-  });
-
-  return user;
 };
 
 // ---------------------------------------------------------------------------
@@ -218,7 +198,7 @@ export const loginUser = async (loginData: z.infer<typeof loginSchema>) => {
     return { otpRequired: true, email: user.email };
   }
 
-  const tokens = await generateTokens(user.id);
+  const tokens = await generateTokens(user.id, user.type as "ADMIN" | "USER");
   return { user, ...tokens };
 };
 
@@ -277,7 +257,7 @@ export const verifyLoginOtp = async (email: string, otp: string) => {
     data: { otpCode: null, otpExpires: null, otpAttempts: 0 },
   });
 
-  const tokens = await generateTokens(user.id);
+  const tokens = await generateTokens(user.id, user.type as "ADMIN" | "USER");
   return { user, ...tokens };
 };
 

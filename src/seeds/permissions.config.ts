@@ -27,7 +27,7 @@ const methodToAction: Record<string, string> = {
 };
 
 /**
- * Scan route files and extract permissions from canManage() calls and HTTP methods
+ * Scan route files and extract permissions from authorization helper calls and HTTP methods
  * This makes permissions truly dynamic based on actual API routes
  */
 export function scanRoutesForPermissions(routesDir: string): GeneratedPermission[] {
@@ -40,14 +40,14 @@ export function scanRoutesForPermissions(routesDir: string): GeneratedPermission
     const filePath = path.join(routesDir, file);
     const content = fs.readFileSync(filePath, 'utf-8');
 
-    // Extract subject from canManage('Subject') calls
-    const canManageMatches = content.matchAll(/canManage\(['"](\w+)['"]\)/g);
+    // Extract subject from permission helper calls like canRead/canCreate/canUpdate/canDelete/canManage
+    const permissionMatches = content.matchAll(/can(?:Read|Create|Update|Delete|Manage)\(['"](\w+)['"]\)/g);
     const subjects = new Set<string>();
-    for (const match of canManageMatches) {
+    for (const match of permissionMatches) {
       subjects.add(match[1]);
     }
 
-    // If no canManage found, try to infer from filename
+    // If no helper subject found, try to infer from filename
     if (subjects.size === 0) {
       const subjectMatch = file.match(/(\w+)Routes?\.ts/);
       if (subjectMatch) {

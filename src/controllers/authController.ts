@@ -12,6 +12,7 @@ import {
 import * as response from "../utils/response";
 import logger from "../utils/logger";
 import { uploadService } from "../services/UploadService";
+import * as userService from "../services/userService";
 import { AuthRequest } from "../middleware/authMiddleware";
 import {
   REFRESH_TOKEN_COOKIE_NAME,
@@ -114,7 +115,7 @@ export const updateProfile = async (
       avatarUrl = uploadRes.url;
     }
 
-    const updatedUser = await authService.updateUserProfile(req.user.id, {
+    const updatedUser = await userService.updateUser(req.user.id, {
       ...validatedData,
       avatar: avatarUrl,
     });

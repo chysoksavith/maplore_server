@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { listUsersQuerySchema } from '../utils/validation';
 import { buildPaginationMeta, getPaginationParams } from '../utils/pagination';
 
+const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+
 type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 
 const buildUserWhereClause = (query: ListUsersQuery): Prisma.UserWhereInput => {
@@ -97,6 +99,7 @@ export const updateUser = async (
     gender?: 'MALE' | 'FEMALE' | 'OTHER';
     isActive?: boolean;
     roleId?: number;
+    avatar?: string;
   },
 ) => {
   const user = await prisma.user.findUnique({
@@ -117,9 +120,10 @@ export const updateUser = async (
   if (data.gender !== undefined) updateData.gender = data.gender;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
   if (data.roleId !== undefined) updateData.role = { connect: { id: data.roleId } };
+  if (data.avatar !== undefined) updateData.avatar = data.avatar;
   if (data.password) {
     const bcrypt = await import('bcryptjs');
-    updateData.password = await bcrypt.hash(data.password, 10);
+    updateData.password = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
   }
 
   const updatedUser = await prisma.user.update({
@@ -129,6 +133,9 @@ export const updateUser = async (
       id: true,
       email: true,
       name: true,
+      phoneNumber: true,
+      gender: true,
+      avatar: true,
       type: true,
       isActive: true,
       updatedAt: true,

@@ -62,3 +62,8 @@ npm run dev
 ```
 
 The server will be available at `http://localhost:3000`.
+
+
+# install prisma client 
+npm install @prisma/client
+npm install prisma --save-dev

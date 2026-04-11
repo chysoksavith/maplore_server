@@ -1,6 +1,6 @@
 import express from "express";
 import { protect, AuthRequest } from "../middleware/authMiddleware";
-import { canManage } from "../middleware/authorize";
+import { canCreate, canRead, canUpdate } from "../middleware/authorize";
 import * as response from "../utils/response";
 
 import * as authController from "../controllers/authController";
@@ -12,7 +12,7 @@ const router = express.Router();
 router.get(
   "/",
   protect,
-  canManage("User"),
+  canRead("User"),
   userController.listUsers,
 );
 
@@ -25,12 +25,13 @@ router.get("/profile", protect, (req: AuthRequest, res) => {
         phoneNumber: req.user.phoneNumber,
         gender: req.user.gender,
         avatar: req.user.avatar,
-        role: req.user.role ? { name: req.user.role.name } : null,
-        ...(req.user.role?.name === "ADMIN"
+        type: req.user.type,
+        role: req.user.role
           ? {
-              permission: req.user.role.permissions.map(({ permission }) => permission),
+              name: req.user.role.name,
+              permissions: req.user.role.permissions.map(({ permission }) => permission),
             }
-          : {}),
+          : null,
       }
     : null;
 
@@ -50,7 +51,7 @@ router.patch(
 router.post(
   "/create",
   protect,
-  canManage("User"),
+  canCreate("User"),
   uploadMiddleware.single("avatar"),
   authController.adminCreateUser,
 );
@@ -61,7 +62,7 @@ router.post(
 router.patch(
   "/:id",
   protect,
-  canManage("User"),
+  canUpdate("User"),
   userController.updateUser,
 );
 
